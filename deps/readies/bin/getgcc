@@ -1,0 +1,83 @@
+#!/bin/sh
+''''[ ! -z $VIRTUAL_ENV ] && exec python -u -- "$0" ${1+"$@"}; command -v python3 > /dev/null && exec python3 -u -- "$0" ${1+"$@"}; exec python2 -u -- "$0" ${1+"$@"} # '''
+
+import sys
+import os
+import argparse
+
+HERE = os.path.dirname(__file__)
+ROOT = os.path.abspath(os.path.join(HERE, ".."))
+sys.path.insert(0, ROOT)
+import paella
+
+#----------------------------------------------------------------------------------------------
+
+class SystemSetup(paella.Setup):
+    def __init__(self, nop=False, modern=False):
+        paella.Setup.__init__(self, nop)
+        self.modern = modern
+
+    def ubuntu(self):
+        self.install("build-essential")
+        if self.modern:
+            self.add_repo("ppa:ubuntu-toolchain-r/test")
+            if self.install("gcc-10 g++-10", output=False, _try=True) == 0:
+                self.run("update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 60 --slave /usr/bin/g++ g++ /usr/bin/g++-10")
+            else:
+                self.install("gcc-9 g++-9")
+                self.run("update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 60 --slave /usr/bin/g++ g++ /usr/bin/g++-9")
+
+    def debian(self):
+        if not self.modern:
+            self.install("build-essential")
+        else:
+            self.run("echo 'deb http://deb.debian.org/debian testing main' > /etc/apt/sources.list.d/testing.list")
+            self.run("apt-get update -qq")
+            self.run("apt-get install -y -t testing build-essential")
+
+        #  we cannot use gcc10 in many contexts - this change allows compilation on new ubuntus, and
+        # gcc10 (for now)
+        if self.modern is False and self.osnick in ['hirsute', 'focal']:
+            self.install("gcc-9 g++-9")
+            self.run("update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 9")
+            self.run("update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 9")
+
+
+    def redhat_compat(self):
+        self.group_install("'Development Tools'")
+        if self.modern:
+            if self.dist == 'centos' and self.os_version[0] == 8:
+                self.install("gcc-toolset-9-gcc gcc-toolset-9-gcc-c++")
+                self.install("gcc-toolset-9-libatomic-devel")
+                self.cp_to_profile_d("/opt/rh/gcc-toolset-9/enable", "gcc-toolset-9.sh")
+            else:
+                self.install("centos-release-scl")
+                self.install("devtoolset-9")
+                self.install("devtoolset-9-libatomic-devel")
+                self.cp_to_profile_d("/opt/rh/devtoolset-9/enable", "scl-devtoolset-9.sh")
+
+    def fedora(self):
+        self.group_install("'Development Tools'")
+
+    def macos(self):
+        if self.modern:
+            self.install("gcc@9")
+            self.run("%s/bin/symlink -f --target /usr/local/bin/gcc-9 --link /usr/local/bin/gcc" % ROOT)
+            self.run("%s/bin/symlink -f --target /usr/local/bin/g++-9 --link /usr/local/bin/g++" % ROOT)
+            self.run("%s/bin/symlink -f --target /usr/local/bin/gcc-9 --link /usr/local/bin/cc" % ROOT)
+            self.run("%s/bin/symlink -f --target /usr/local/bin/g++-9 --link /usr/local/bin/c++" % ROOT)
+        else:
+            if sh('xcode-select -p') == '':
+                fatal("Xcode tools are not installed. Please run xcode-select --install.")
+                # install brew (which will install Xcode command line tools):
+                # self.run("/bin/bash -c '$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)'")
+
+#----------------------------------------------------------------------------------------------
+
+parser = argparse.ArgumentParser(description='Set up GCC build environemnt.')
+parser.add_argument('-n', '--nop', action="store_true", help='no operation')
+parser.add_argument('--modern', action="store_true", help="Install modern GCC version")
+
+args = parser.parse_args()
+
+SystemSetup(nop = args.nop, modern=args.modern).setup()

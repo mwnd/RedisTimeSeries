@@ -1,0 +1,26 @@
+
+# Typically invoked with:
+# HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+# ROOT=$(cd $HERE/somewhere && pwd)
+# READIES=$ROOT/deps/readies
+# . $READIES/shibumi/defs
+
+error_trap() {
+	# >&2 echo "$0: There are errors."
+	>&2 echo
+	>&2 echo "In $0:"
+	>&2 awk 'NR>L-4 && NR<L+4 { printf "%-5d%4s%s\n",NR,(NR==L?">>> ":""),$0 }' L=$1 $0 
+	>&2 echo
+	exit 1
+}
+
+# avoid trap with bashdb
+if [[ -z $_Dbg_DEBUGGER_LEVEL ]]; then
+	trap 'error_trap $LINENO' ERR
+fi
+
+if [[ -d $READIES ]]; then
+	. $READIES/shibumi/functions 
+fi
+
+setup_profile_d

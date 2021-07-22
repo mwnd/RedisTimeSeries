@@ -1,0 +1,61 @@
+
+SHELL:=$(shell sh -c "command -v bash")
+
+MAKE_MAJORVER:=$(shell echo "$(MAKE_VERSION)" | cut -d. -f1)
+ifeq ($(MAKE_MAJORVER),3)
+$(error GNU Make version is too old. Aborting.)
+endif
+
+ifeq ($(ROOT),)
+$(error ROOT is undefined)
+endif
+
+ifeq ($(READIES),)
+ifneq ($(wildcard $(ROOT)/deps/readies),)
+READIES:=$(ROOT)/deps/readies
+else ifneq ($(wildcard $(ROOT)/opt/readies),)
+READIES:=$(ROOT)/opt/readies
+else ifneq ($(wildcard $(ROOT)/readies),)
+READIES:=$(ROOT)/readies
+else
+$(error Cannot find readies root)
+endif
+endif
+
+MK:=$(READIES)/mk
+
+MK.pyver ?= 2
+MK.getpy=getpy$(MK.pyver)
+
+ifneq ($(shell { CHECK=1 $(READIES)/bin/$(MK.getpy); echo -n $$?; }),0)
+ifneq ($(filter setup,$(MAKECMDGOALS)),)
+MK.nobindir:=1
+else
+$(error It seems build prerequisites have not been installed: please run 'sudo make setup'.)
+endif
+__NO_PYTHON=1
+endif
+
+MK_ALL_TARGETS:=bindirs build
+DEFAULT_TARGETS:=bindirs
+
+SUDO:=$(shell [ $$( command -v sudo >/dev/null 2>&1; echo $$? ) = 0 ] && echo sudo)
+USER:=$(shell whoami)
+
+include $(MK)/functions
+include $(MK)/common.defs
+
+ifneq ($(__NO_PYTHON),1)
+
+include $(MK)/platform.defs
+
+ifeq ($(OS),macos)
+include $(MK)/macos.defs
+endif
+
+include $(MK)/git.defs
+include $(MK)/variant.defs
+include $(MK)/bindirs.defs
+include $(MK)/nproc.defs
+
+endif # __NO_PYTHON

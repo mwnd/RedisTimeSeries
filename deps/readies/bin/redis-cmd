@@ -1,0 +1,47 @@
+#!/bin/bash
+
+arg=""
+if [[ ! -z $PORT ]]; then
+        args="--port $PORT"
+        cli_args="-p $PORT"
+fi
+if [[ ! -z $1 ]]; then
+	while [[ $1 != "--" ]]; do
+			args="$args $1"
+			shift
+	done
+	shift
+fi
+
+server_log=$(mktemp /tmp/redis-server.XXXXX)
+redis-server $args > $server_log 2>&1 &
+redis-cli $cli_args ping > /dev/null 2>&1
+e=$?
+n=0
+while [[ $e != 0 && $n < 10 ]]; do
+	n=$((n+1))
+	sleep 0.1
+	redis-cli $cli_args ping > /dev/null 2>&1
+	e=$?
+done
+if [[ $e != 0 ]]; then
+	>&2 cat $server_log
+	rm -f $server_log
+	exit 1
+fi
+
+#if [[ ! -z $* ]]; then
+	file=$(mktemp /tmp/redis.XXXXXX)
+	redis-cli $cli_args $* <&0 | cat > $file
+	cat $file
+	rm $file
+#else
+#	file=$(mktemp /tmp/redis.XXXXXX)
+#	redis-cli $cli_args $* <&0 | cat > $file
+#	cat $file
+#	rm $file
+#fi
+
+kill -TERM $!
+rm -f $server_log
+exit 0

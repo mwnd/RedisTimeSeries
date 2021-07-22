@@ -1,0 +1,129 @@
+#!/bin/sh
+''''[ ! -z $VIRTUAL_ENV ] && exec python -u -- "$0" ${1+"$@"}; command -v python3 > /dev/null && exec python3 -u -- "$0" ${1+"$@"}; exec python2 -u -- "$0" ${1+"$@"} # '''
+
+import sys
+import os
+import argparse
+import shutil
+import tempfile
+import traceback
+
+HERE = os.path.dirname(__file__)
+READIES = os.path.abspath(os.path.join(HERE, ".."))
+sys.path.insert(0, READIES)
+import paella  # noqa: F401
+
+os.environ["PYTHONWARNINGS"] = 'ignore:DEPRECATION::pip._internal.cli.base_command'
+
+#----------------------------------------------------------------------------------------------
+
+CLANG_FORMAT_BASE_URL = "https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-22538c65"
+
+class CLangFormatSetup(paella.Setup):
+    def __init__(self, args):
+        paella.Setup.__init__(self, nop=args.nop)
+
+    def linux(self):
+        self.install_downloaders()
+
+        if self.arch == 'x64':
+            self.run("wget -q -O /usr/local/bin/clang-format-10 %s/clang-format-10_linux-amd64" % CLANG_FORMAT_BASE_URL)
+            self.run("chmod +x /usr/local/bin/clang-format-10")
+            self.run("ln -sf /usr/local/bin/clang-format-10 /usr/local/bin/clang-format")
+        elif self.platform.is_arm():
+            self.install("clang-format-10")
+            self.run("ln -sf `command -v clang-format-10` /usr/local/bin/clang-format")
+        else:
+            raise paella.Error("Error installing CLang Format on not-x64 platform")
+
+    def macos(self):
+        self.install("clang-format")
+
+#----------------------------------------------------------------------------------------------
+
+class CLangSetup(paella.Setup):
+    def __init__(self, args):
+        paella.Setup.__init__(self, nop=args.nop)
+        self.modern = args.modern
+
+    def common_first(self):
+        if not self.modern:
+            self.install("clang")
+
+    def debian_compat(self):
+        if not self.modern:
+            return
+
+        self.install("software-properties-common apt-transport-https")
+        self.install("unzip lsb-release gnupg2")
+
+        if self.osnick != "trusty":
+            if self.platform.is_arm():
+                clang_ver = "10"
+            else:
+                clang_ver = "" # auto-detect
+            self.run(r"""
+                cd /tmp
+                wget -q https://apt.llvm.org/llvm.sh
+                bash llvm.sh {CLANG_VER}
+                rm llvm.sh
+                """.format(CLANG_VER=clang_ver))
+            clang_ver = sh("ls /usr/bin/clang-* 2>/dev/null | grep -E 'clang-[[:digit:]].*' | cut -f2 -d- | sort -n | head -1").strip()
+            if clang_ver == "":
+                raise paella.Error("Error installing CLang via apt.llvm.org")
+
+            self.install("clang-tools-%s" % clang_ver)
+        else:
+            clang_ver = "8"
+            self.run("%s/bin/getgcc --modern" % READIES)
+            self.run('add-apt-repository  "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-8 main"')
+            self.run("wget -q -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -")
+            self.run("apt-get update -qq")
+            self.install("llvm-8 llvm-8-dev llvm-8-doc llvm-8-examples llvm-8-runtime "
+                         "libllvm-8-ocaml-dev libllvm8 "
+                         "clang-8 clang-tools-8 clang-8-doc "
+                         "libclang-common-8-dev libclang-8-dev libclang1-8 libc++-8-dev libc++abi-8-dev libfuzzer-8-dev "
+                         "clang-format-8 python-clang-8 "
+                         "lldb-8 lld-8")
+        
+        # arrange llvm-* and clang-* version-neutral symlinks
+        self.run(r"""
+            cd /usr/bin
+            for f in `ls llvm*-{CLANG_VER} clang*-{CLANG_VER} 2>/dev/null`; do ln -sf $f ${{f/%-{CLANG_VER}/}}; done
+            """.format(CLANG_VER=clang_ver))
+        
+    def redhat_compat(self):
+        if not self.modern:
+            return
+        self.run("%s/bin/getepel" % READIES)
+        self.install("llvm-toolset-7.0")
+        self.cp_to_profile_d("/opt/rh/llvm-toolset-7.0/enable", "llvm-toolset-7.0.sh")
+
+    def fedora(self):
+        if self.modern:
+            self.install("clang")
+
+    def macos(self):
+        self.install("llvm")
+
+    def common_last(self):
+        pass
+
+#----------------------------------------------------------------------------------------------
+
+parser = argparse.ArgumentParser(description='Install CLang tools')
+parser.add_argument('-n', '--nop', action="store_true", help='no operation')
+parser.add_argument('--format', action="store_true", default=False, help='Install clang-format')
+parser.add_argument('--modern', action="store_true", help="Install modern CLang/LLVM version") 
+args = parser.parse_args()
+
+try:
+    if args.format:
+        CLangFormatSetup(args).setup()
+    else:
+        CLangSetup(args).setup()
+except Exception as x:
+    traceback.print_exc()
+    fatal(str(x))
+
+exit(0)

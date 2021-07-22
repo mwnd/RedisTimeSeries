@@ -1,0 +1,82 @@
+#!/bin/sh
+''''[ ! -z $VIRTUAL_ENV ] && exec python -u -- "$0" ${1+"$@"}; command -v python3 > /dev/null && exec python3 -u -- "$0" ${1+"$@"}; exec python2 -u -- "$0" ${1+"$@"} # '''
+
+import sys
+import os
+import argparse
+import shutil
+import tempfile
+import traceback
+
+HERE = os.path.dirname(__file__)
+READIES = os.path.abspath(os.path.join(HERE, ".."))
+sys.path.insert(0, READIES)
+import paella  # noqa: F401
+
+os.environ["PYTHONWARNINGS"] = 'ignore:DEPRECATION::pip._internal.cli.base_command'
+
+#----------------------------------------------------------------------------------------------
+
+class RMPyToolsSetup(paella.Setup):
+    def __init__(self, args):
+        paella.Setup.__init__(self, nop=args.nop)
+        if args.no_reinstall:
+            self.reinstall = False
+        else:
+            self.reinstall = args.reinstall
+
+    def build_and_install_psutil(self, deps):
+        self.run("%s/bin/getgcc" % READIES)
+        self.install(deps)
+        self.pip_install("psutil")
+
+    def common_first(self):
+        self.psutil_installed = self.pip_install("psutil", _try=True, output=False) == 0
+
+    def debian_compat(self):
+        if not self.psutil_installed:
+            self.run("apt-get remove -y python%s-psutil" % ("" if self.pyver == "2" else self.pyver),
+                     _try=True, output=False)
+            self.build_and_install_psutil("python%s-dev" % self.pyver)
+
+    def redhat_compat(self):
+        if not self.psutil_installed:
+            self.build_and_install_psutil("python%s-devel" % self.pyver)
+
+    def archlinux(self):
+        if not self.psutil_installed:
+            self.build_and_install_psutil("python%s-dev" % self.pyver)
+
+    def fedora(self):
+        if not self.psutil_installed:
+            self.run("dnf remove -y python%s-psutil" % self.pyver, _try=True, output=False) == 0
+            self.build_and_install_psutil("python%s-devel" % self.pyver)
+
+    def macos(self):
+        pass
+
+    def common_last(self):
+        self.install("git")
+        if self.reinstall:
+            self.pip_uninstall("redis redis-py-cluster ramp-packer RLTest")
+        # redis-py-cluster should be installed from git due to redis-py dependency
+        # self.pip_install("--no-cache-dir git+https://github.com/Grokzen/redis-py-cluster.git@master")
+        self.pip_install("--no-cache-dir --ignore-installed redis-py-cluster")
+        self.pip_install("--no-cache-dir --ignore-installed git+https://github.com/RedisLabsModules/RLTest.git@master")
+        self.pip_install("--no-cache-dir --ignore-installed git+https://github.com/RedisLabs/RAMP@master")
+
+#----------------------------------------------------------------------------------------------
+
+parser = argparse.ArgumentParser(description='Install RedisLabs Modules Python tools')
+parser.add_argument('-n', '--nop', action="store_true", help='no operation')
+parser.add_argument('--no-reinstall', action="store_true", default=False, help='Not not reinstall everything')
+parser.add_argument('--reinstall', action="store_true", default=True, help='Reinstall everything (the default behavior)')
+args = parser.parse_args()
+
+try:
+    RMPyToolsSetup(args).setup()
+except Exception as x:
+    traceback.print_exc()
+    fatal(str(x))
+
+exit(0)

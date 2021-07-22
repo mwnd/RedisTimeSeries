@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+set -e
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+READIES=$(cd $HERE/.. && pwd)
+. $READIES/shibumi/defs
+
+create_utf8_profile_script() {
+	local profile_d=`get_profile_d`
+	# [[ -f $profile_d/utf8.sh ]] && return
+	local x="$1"
+	x="${x:-en_US}"
+	cat <<-EOF > $profile_d/utf8.sh
+		export LANG="${x}.${__UTF8}"
+		export LANGUAGE="${x}.${__UTF8}"
+		# export LC_ALL="${x}.${__UTF8}"
+EOF
+}
+
+export __UTF8=utf8
+if command -v apt-get &> /dev/null; then
+	# if export LANG="en_US.${__UTF8}" 2>&1 | grep warning &> /dev/null; then
+	if ! locale -a 2>/dev/null | grep 'en_US.utf8' &> /dev/null; then
+		if ! dpkg -l locales locale-gen &> /dev/null; then
+			runn apt-get -qq update
+			runn apt-get install -q -y locales
+		fi
+		runn locale-gen --purge en_US.${__UTF8}
+		runn dpkg-reconfigure -f noninteractive locales
+	fi
+	create_utf8_profile_script
+
+elif command -v yum &> /dev/null; then
+	EPEL=$(source /etc/os-release; echo $VERSION_ID;)
+	if [[ $EPEL == 8 ]]; then
+		runn dnf install -y langpacks-en glibc-all-langpacks
+	elif [[ -f /etc/yum.conf && -z $(grep '^override_install_langs=' /etc/yum.conf) ]]; then
+		runn sed -i 's/^\(override_install_langs=\)/# \1/' /etc/yum.conf
+		runn yum reinstall -y glibc-common
+	fi
+	create_utf8_profile_script
+
+else
+	create_utf8_profile_script "C"
+fi
