@@ -113,8 +113,9 @@ inline int __builtin_clzll(unsigned long long mask) {
 // BitScanReverse scans from MSB to LSB for first set bit.
 // Returns 0 if no set bit is found.
 #if defined(_WIN64)
-    if (_BitScanReverse64(&where, mask))
-        return (int)(63 - where);
+    //if (_BitScanReverse64(&where, mask))
+    //    return (int)(63 - where);
+    return (int)__lzcnt64(mask);
 #elif defined(_WIN32)
     // Scan the high 32 bits.
     if (_BitScanReverse(&where, static_cast<unsigned long>(mask >> 32)))
