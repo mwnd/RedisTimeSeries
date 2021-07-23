@@ -1,10 +1,17 @@
 #include <string.h>
+#ifndef _WIN32
 #include <sys/param.h>
+#endif
 #include <ctype.h>
 #include "strings.h"
 #include "alloc.h"
 
 #include "sds.h"
+
+#ifdef _WIN32
+#define strncasecmp(s1, s2, len) _strnicmp(s1, s2, len)
+#define strcasecmp(s1, s2) _stricmp(s1, s2)
+#endif
 
 // RedisModuleString *RMUtil_CreateFormattedString(RedisModuleCtx *ctx, const char *fmt, ...) {
 //     sds s = sdsempty();
@@ -74,7 +81,11 @@ void RMUtil_StringConvert(RedisModuleString **rs, const char **ss, size_t n, int
   for (size_t ii = 0; ii < n; ++ii) {
     const char *p = RedisModule_StringPtrLen(rs[ii], NULL);
     if (options & RMUTIL_STRINGCONVERT_COPY) {
-      p = strdup(p);
+#ifndef _WIN32
+        p = strdup(p);
+#else
+        p = _strdup(p);
+#endif
     }
     ss[ii] = p;
   }

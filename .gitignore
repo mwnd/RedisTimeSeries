@@ -20,3 +20,10 @@ venv/
 /tests/tests_report.xml
 site/
 /.vs
+src/.vs/
+src/Debug/
+src/Release
+src/x64/
+*.vcxproj.user
+/deps/RedisModulesSDK/msvc/x64/Release
+/deps/RedisModulesSDK/msvc/x64/Debug

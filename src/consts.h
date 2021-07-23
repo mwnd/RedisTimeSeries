@@ -9,6 +9,30 @@
 #include <sys/types.h>
 #include <stdbool.h>
 
+#if defined(__GNUC__)
+#define likely(x) __builtin_expect((x), 1)
+#define unlikely(x) __builtin_expect((x), 0)
+#elif _MSC_VER
+#define likely(x) (x)
+#define unlikely(x) (x)
+#endif
+
+#if defined(_WIN32) || defined(_WIN64)
+/* We are on Windows */
+#define strtok_r strtok_s
+#endif
+
+#if defined(_WIN32) && !defined(__MINGW32__)
+typedef __int8 int8_t;
+typedef unsigned __int8 u_int8_t;
+typedef __int16 int16_t;
+typedef unsigned __int16 u_int16_t;
+typedef __int32 int32_t;
+typedef unsigned __int32 u_int32_t;
+typedef __int64 int64_t;
+typedef unsigned __int64 u_int64_t;
+#endif
+
 #define TRUE 1
 #define FALSE 0
 

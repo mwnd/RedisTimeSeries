@@ -26,6 +26,11 @@
 #include "rmutil/strings.h"
 #include "rmutil/util.h"
 
+#ifdef _WIN32
+#define strncasecmp(s1, s2, len) _strnicmp(s1, s2, len)
+#define strcasecmp(s1, s2) _stricmp(s1, s2)
+#endif
+
 #ifndef REDISTIMESERIES_GIT_SHA
 #define REDISTIMESERIES_GIT_SHA "unknown"
 #endif
@@ -1287,6 +1292,9 @@ example:
 redis-server --loadmodule ./redistimeseries.so COMPACTION_POLICY
 "max:1m:1d;min:10s:1h;avg:2h:10d;avg:3d:100d" RETENTION_POLICY 3600 MAX_SAMPLE_PER_CHUNK 1024
 */
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     if (RedisModule_Init(ctx, "timeseries", REDISTIMESERIES_MODULE_VERSION, REDISMODULE_APIVER_1) ==
         REDISMODULE_ERR) {

@@ -415,7 +415,11 @@ int RMStringLenAggTypeToEnum(RedisModuleString *aggTypeStr) {
 
 int StringLenAggTypeToEnum(const char *agg_type, size_t len) {
     int result = TS_AGG_INVALID;
+#ifndef _WIN32
     char agg_type_lower[len];
+#else
+    char *agg_type_lower = malloc(len);
+#endif
     for (int i = 0; i < len; i++) {
         agg_type_lower[i] = tolower(agg_type[i]);
     }
@@ -450,6 +454,9 @@ int StringLenAggTypeToEnum(const char *agg_type, size_t len) {
             result = TS_AGG_VAR_S;
         }
     }
+#ifdef _WIN32
+    free(agg_type_lower);
+#endif
     return result;
 }
 

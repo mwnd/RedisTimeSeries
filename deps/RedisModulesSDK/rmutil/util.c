@@ -2,13 +2,30 @@
 #include <errno.h>
 #include <math.h>
 #include <ctype.h>
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
 #include <stdarg.h>
 #include <limits.h>
 #include <string.h>
 #define REDISMODULE_EXPERIMENTAL_API
 #include <redismodule.h>
 #include "util.h"
+
+#ifdef _WIN32
+#define strncasecmp(s1, s2, len) _strnicmp(s1, s2, len)
+#define strcasecmp(s1, s2) _stricmp(s1, s2)
+
+char *strsep(char **sp, char *sep) {
+  char *p, *s;
+  if (sp == NULL || *sp == NULL || **sp == '\0') return (NULL);
+  s = *sp;
+  p = s + strcspn(s, sep);
+  if (*p != '\0') *p++ = '\0';
+  *sp = p;
+  return (s);
+}
+#endif
 
 /**
 Check if an argument exists in an argument list (argv,argc), starting at offset.
@@ -71,8 +88,13 @@ RMUtilInfo *RMUtil_GetRedisInfo(RedisModuleCtx *ctx) {
     }
 
     char *key = strsep(&line, ":");
+#ifndef _WIN32
     info->entries[i].key = strdup(key);
     info->entries[i].val = strdup(line);
+#else
+    info->entries[i].key = _strdup(key);
+    info->entries[i].val = _strdup(line);
+#endif
     i++;
     if (i >= cap) {
       cap *= 2;
@@ -92,7 +114,7 @@ void RMUtilRedisInfo_Free(RMUtilInfo *info) {
   free(info);
 }
 
-int RMUtilInfo_GetInt(RMUtilInfo *info, const char *key, long long *val) {
+int RMUtilInfo_GetInt(RMUtilInfo *info, const char *key, PORT_LONGLONG *val) {
 
   const char *p = NULL;
   if (!RMUtilInfo_GetString(info, key, &p)) {
@@ -171,13 +193,13 @@ int rmutil_vparseArgs(RedisModuleString **argv, int argc, int offset, const char
       *s = argv[i];
 
     } else if (*c == 'l') {  // read long
-      long long *l = va_arg(ap, long long *);
+      PORT_LONGLONG *l = va_arg(ap, PORT_LONGLONG *);
 
       if (RedisModule_StringToLongLong(argv[i], l) != REDISMODULE_OK) {
         return REDISMODULE_ERR;
       }
     } else if (*c == 'd') {  // read double
-      double *d = va_arg(ap, double *);
+      double *d = va_arg(ap, PORT_LONGDOUBLE *);
       if (RedisModule_StringToDouble(argv[i], d) != REDISMODULE_OK) {
         return REDISMODULE_ERR;
       }
@@ -218,7 +240,7 @@ RedisModuleCallReply *RedisModule_CallReplyArrayElementByPath(RedisModuleCallRep
   RedisModuleCallReply *ele = rep;
   const char *s = path;
   char *e;
-  long idx;
+  PORT_LONG idx;
   do {
     errno = 0;
     idx = strtol(s, &e, 10);

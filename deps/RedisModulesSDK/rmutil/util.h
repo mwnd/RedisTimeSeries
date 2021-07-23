@@ -107,7 +107,7 @@ void RMUtilRedisInfo_Free(RMUtilInfo *info);
 * Get an integer value from an info object. Returns 1 if the value was found and
 * is an integer, 0 otherwise. the value is placed in 'val'
 */
-int RMUtilInfo_GetInt(RMUtilInfo *info, const char *key, long long *val);
+int RMUtilInfo_GetInt(RMUtilInfo *info, const char *key, PORT_LONGLONG *val);
 
 /**
 * Get a string value from an info object. The value is placed in str.

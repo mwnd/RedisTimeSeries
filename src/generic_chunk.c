@@ -132,7 +132,11 @@ int RMStringLenDuplicationPolicyToEnum(RedisModuleString *aggTypeStr) {
 }
 
 DuplicatePolicy DuplicatePolicyFromString(const char *input, size_t len) {
+#ifndef _WIN32
     char input_lower[len];
+#else
+    char *input_lower = malloc(len);
+#endif
     for (int i = 0; i < len; i++) {
         input_lower[i] = tolower(input[i]);
     }
@@ -155,5 +159,8 @@ DuplicatePolicy DuplicatePolicyFromString(const char *input, size_t len) {
             return DP_FIRST;
         }
     }
+#ifdef _WIN32
+    free(input_lower);
+#endif
     return DP_INVALID;
 }

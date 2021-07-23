@@ -28,5 +28,9 @@ void RMUTil_InitAlloc() {
   RedisModule_Realloc = realloc;
   RedisModule_Calloc = calloc;
   RedisModule_Free = free;
+#ifndef _WIN32
   RedisModule_Strdup = strdup;
+#else
+  RedisModule_Strdup = _strdup;
+#endif
 }
