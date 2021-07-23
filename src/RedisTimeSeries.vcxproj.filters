@@ -51,6 +51,30 @@
     <ClCompile Include="tsdb.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="reply.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="filter_iterator.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="fpconv.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="gears_commands.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="gears_integration.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="query_language.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="resultset.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="series_iterator.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="version.h">

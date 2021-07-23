@@ -105,7 +105,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(ProjectDir)..\deps;$(ProjectDir)..\deps\RedisModulesSDK\;$(ProjectDir)..\deps\RedisModulesSDK\rmutil;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
-      <PreprocessorDefinitions>REDISMODULE_EXPERIMENTAL_API;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>REDISMODULE_EXPERIMENTAL_API;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
       <Optimization>Disabled</Optimization>
     </ClCompile>
@@ -118,7 +118,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(ProjectDir)..\deps;$(ProjectDir)..\deps\RedisModulesSDK\;$(ProjectDir)..\deps\RedisModulesSDK\rmutil;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
-      <PreprocessorDefinitions>_WIN32;REDISMODULE_EXPERIMENTAL_API;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WIN32;REDISMODULE_EXPERIMENTAL_API;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <NoEntryPoint>false</NoEntryPoint>
@@ -131,12 +131,20 @@
     <ClCompile Include="compressed_chunk.c" />
     <ClCompile Include="config.c" />
     <ClCompile Include="endianconv.c" />
+    <ClCompile Include="filter_iterator.c" />
+    <ClCompile Include="fpconv.c" />
+    <ClCompile Include="gears_commands.c" />
+    <ClCompile Include="gears_integration.c" />
     <ClCompile Include="generic_chunk.c" />
     <ClCompile Include="gorilla.c" />
     <ClCompile Include="indexer.c" />
     <ClCompile Include="module.c" />
     <ClCompile Include="parse_policies.c" />
+    <ClCompile Include="query_language.c" />
     <ClCompile Include="rdb.c" />
+    <ClCompile Include="reply.c" />
+    <ClCompile Include="resultset.c" />
+    <ClCompile Include="series_iterator.c" />
     <ClCompile Include="tsdb.c" />
   </ItemGroup>
   <ItemGroup>

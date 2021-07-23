@@ -41,10 +41,16 @@ make test          # run tests
   AOF=0|1          # run AOF persistency tests on a standalone Redis topology
   SLAVES=0|1       # run replication tests on standalone Redis topology
   CLUSTER=0|1      # run general tests on a OSS Redis Cluster topology
+  GEARS=0|1        # also load RedisGears
+  GEARS_PATH=path  # RedisGears module path
   COV=1            # perform coverage analysis
   VALGRIND|VG=1    # run specified tests with Valgrind
 
 make pack          # build packages (ramp & dependencies)
+
+make benchmarks        # run all benchmarks
+  BENCHMARK=filename   # run benchmark specified by 'filename'
+  BENCH_ARGS="..."     # redisbench_admin  extra arguments
 endef
 
 #----------------------------------------------------------------------------------------------  
@@ -65,6 +71,9 @@ PAKCAGE_NAME ?= $(BINROOT)/redistimeseries.{os}-{architecture}.latest.zip
 SDK_DIR=$(ROOT)/deps/RedisModulesSDK
 RMUTIL_LIBDIR=$(BINROOT)/rmutil
 LIBRMUTIL=$(RMUTIL_LIBDIR)/librmutil.a
+FAST_DOUBLE_PARSER_LIBDIR=$(BINROOT)/fast_double_parser_c
+FAST_DOUBLE_PARSER_SRCDIR=$(SRCDIR)/fast_double_parser_c
+LIBFAST_DOUBLE_PARSER=$(FAST_DOUBLE_PARSER_LIBDIR)/libfast_double_parser_c.a
 
 #----------------------------------------------------------------------------------------------
 
@@ -87,7 +96,7 @@ CC_FLAGS = \
 	-DREDISMODULE_EXPERIMENTAL_API
 
 LD_FLAGS += 
-LD_LIBS += -lc -lm -L$(RMUTIL_LIBDIR) -lrmutil
+LD_LIBS += -lc -lm -L$(RMUTIL_LIBDIR) -lrmutil -L$(FAST_DOUBLE_PARSER_LIBDIR) -lfast_double_parser_c -lstdc++
 
 ifeq ($(OS),linux)
 SO_LD_FLAGS += -shared -Bsymbolic $(LD_FLAGS)
@@ -95,10 +104,6 @@ endif
 
 ifeq ($(OS),macos)
 SO_LD_FLAGS += -bundle -undefined dynamic_lookup $(LD_FLAGS)
-endif
-
-ifeq ($(PROFILE),1)
-CC_FLAGS += -g -ggdb -fno-omit-frame-pointer
 endif
 
 ifeq ($(PROFILE),1)
@@ -128,8 +133,16 @@ _SOURCES=\
 	indexer.c \
 	module.c \
 	parse_policies.c \
+	query_language.c \
+	reply.c \
 	rdb.c \
-	tsdb.c
+	resultset.c \
+	tsdb.c \
+	series_iterator.c \
+	filter_iterator.c \
+	fpconv.c \
+	gears_integration.c \
+	gears_commands.c
 
 _TEST_SOURCES=\
 	unittests.c \
@@ -168,6 +181,12 @@ rmutil:
 
 $(LIBRMUTIL): rmutil
 
+libfast_double_parser_c:
+	@echo Building $@...
+	$(SHOW)$(MAKE) -C $(ROOT)/src/fast_double_parser_c
+
+$(LIBFAST_DOUBLE_PARSER): libfast_double_parser_c
+
 docker_lint:
 	$(SHOW)docker build -t llvm-toolset -f llvm.Dockerfile .
 	$(SHOW)docker run --rm -w /code/src -v `pwd`/..:/code llvm-toolset make lint
@@ -185,6 +204,7 @@ format:
 clean:
 	-$(SHOW)[ -e $(BINDIR) ] && find $(BINDIR) -name '*.[oadh]' -type f -delete
 	-$(SHOW)$(MAKE) -C $(ROOT)/build/rmutil clean
+	-$(SHOW)$(MAKE) -C $(FAST_DOUBLE_PARSER_SRCDIR) clean
 	-$(SHOW)rm -f $(TARGET) $(UNITTESTS_RUNNER)
 
 -include $(CC_DEPS)
@@ -193,7 +213,7 @@ $(BINDIR)/%.o: $(SRCDIR)/%.c
 	@echo Compiling $<...
 	$(SHOW)$(CC) $(CC_FLAGS) -c $< -o $@
 
-$(TARGET): $(BIN_DIRS) $(OBJECTS) $(LIBRMUTIL)
+$(TARGET): $(BIN_DIRS) $(OBJECTS) $(LIBRMUTIL) $(LIBFAST_DOUBLE_PARSER)
 	@echo Linking $@...
 	$(SHOW)$(CC) $(SO_LD_FLAGS) -o $@ $(OBJECTS) $(LD_LIBS)
 	$(SHOW)cd $(BINROOT)/..; ln -sf $(FULL_VARIANT)/$(notdir $(TARGET)) $(notdir $(TARGET))
@@ -207,11 +227,13 @@ export GEN=1
 export SLAVES=0
 export AOF=0
 export CLUSTER=0
+export GEARS=0
 else
 export GEN ?= 1
 export SLAVES ?= 1
 export AOF ?= 1
 export CLUSTER ?= 0
+export GEARS ?= 0
 endif
 
 tests: #$(TARGET)
@@ -223,6 +245,7 @@ endif
 		CLUSTER=$(CLUSTER) \
 		GEN=$(GEN) AOF=$(AOF) SLAVES=$(SLAVES) \
 		VALGRIND=$(VALGRIND) \
+		GEARS=$(GEARS) \
 		$(ROOT)/tests/flow/tests.sh
 ifeq ($(COV),1)
 	$(COVERAGE_COLLECT_REPORT)
@@ -248,6 +271,9 @@ ifneq ($(BENCHMARK),)
 	BENCHMARK_ARGS += --test $(BENCHMARK)
 endif
 
+ifneq ($(BENCH_ARGS),)
+	BENCHMARK_ARGS += $(BENCH_ARGS)
+endif
 
 benchmark: $(TARGET)
 	cd ../tests/benchmarks; $(BENCHMARK_ARGS) ; cd ../../src
@@ -267,10 +293,10 @@ run_dev: $(TARGET)
 	$(SHOW)redis-server --loadmodule $(realpath $(TARGET)) $(REDIS_ARGS) --dir /tmp
 
 gdb: $(TARGET)
-	$(SHOW)gdb --args `which redis-server` --loadmodule $(realpath $(TARGET)) --dir /tmp
+	$(SHOW)gdb --args `command -v redis-server` --loadmodule $(realpath $(TARGET)) --dir /tmp
 
 cgdb: $(TARGET)
-	$(SHOW)cgdb --args `which redis-server` --loadmodule $(realpath $(TARGET)) --dir /tmp
+	$(SHOW)cgdb --args `command -v redis-server` --loadmodule $(realpath $(TARGET)) --dir /tmp
 
 #----------------------------------------------------------------------------------------------
 
@@ -320,25 +346,6 @@ coverage:
 
 #----------------------------------------------------------------------------------------------
 
-# arguments:
-#   BRANCH: specifies branch names to serve as an exta package tag
-#   INTO: package destination directory (optinal)
-
-define ramp_pack # (1=tag, 2=subdir)
-$(SHOW) python3 -m RAMP.ramp pack -m $(ROOT)/ramp.yml -o $(BINROOT)/redistimeseries.{os}-{architecture}.$1.zip $(abspath $(TARGET)) 2> /dev/null | grep '.zip' > /tmp/ramp_output
-$(SHOW). $(ROOT)/deps/readies/shibumi/functions; realpath `tail -1 /tmp/ramp_output` > $(BINROOT)/../PACKAGE.$(1)
-$(SHOW)$(ROOT)/src/clean_ramp.py `cat $(BINROOT)/../PACKAGE.$(1)`
-$(SHOW)if [ ! -z "$(INTO)" ]; then { mkdir -p $(INTO)/$(2); cp `cat $(BINROOT)/../PACKAGE.$(1)` $(INTO)/$(2); }; fi
-endef
-
 package: $(TARGET)
 	@echo Creating packages...
-	$(SHOW)if ! command -v redis-server > /dev/null; then \
-		echo Cannot find redis-server. Aborting. ;\
-		exit 1 ;\
-	fi
-	$(SHOW)$(call ramp_pack,latest,release)
-	$(SHOW)$(call ramp_pack,{semantic_version},release)
-ifneq ($(BRANCH),)
-	$(SHOW)$(call ramp_pack,$(BRANCH),branch)
-endif
+	$(SHOW)$(ROOT)/sbin/pack.sh

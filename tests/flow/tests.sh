@@ -6,9 +6,9 @@
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 ROOT=$(cd $HERE/../.. && pwd)
 READIES=$ROOT/deps/readies 
-. $READIES/shibumi/functions
+. $READIES/shibumi/defs
 
-VALGRIND_REDIS_VER=6.2.1
+VALGRIND_REDIS_VER=6.2
 
 #----------------------------------------------------------------------------------------------
 
@@ -25,6 +25,8 @@ help() {
 		CLUSTER=0|1         Tests with --env oss-cluster
 
         REDIS_SERVER=path   Location of redis-server
+		GEARS=0|1           Tests with RedisGears
+        GEARS_PATH=path     Path to redisgears.so
 
 		TEST=test           Run specific test (e.g. test.py:test_name)
 		VALGRIND|VG=1       Run with Valgrind
@@ -61,6 +63,7 @@ valgrind_config() {
 		-q \
 		--leak-check=full \
 		--show-reachable=no \
+		--track-origins=yes \
 		--show-possibly-lost=no"
 
 	# To generate supressions and/or log to file
@@ -94,6 +97,7 @@ run_tests() {
 --module $MODULE
 --module-args '$MODARGS'
 $RLTEST_ARGS
+$GEARS_ARGS
 $VALGRIND_ARGS
 
 EOF
@@ -118,6 +122,7 @@ GEN=${GEN:-1}
 SLAVES=${SLAVES:-1}
 AOF=${AOF:-1}
 CLUSTER=${CLUSTER:-1}
+GEARS=${GEARS:-0}
 
 GDB=${GDB:-0}
 
@@ -142,6 +147,24 @@ fi
 
 [[ $VERBOSE == 1 ]] && RLTEST_ARGS+=" -v"
 [[ $GDB == 1 ]] && RLTEST_ARGS+=" -i --verbose"
+
+#----------------------------------------------------------------------------------------------
+
+GEARS_BRANCH=${GEARS_BRANCH:-master}
+if [[ -n $GEARS && $GEARS != 0 ]]; then
+	platform=`$READIES/bin/platform -t`
+	if [[ -n $GEARS_PATH ]]; then
+		GEARS_ARGS="--module $GEARS_PATH"
+		GEARS_MODULE="$GEARS_PATH"
+	else
+		GEARS_MODULE="$ROOT/bin/$platform/RedisGears/redisgears.so"
+		if [[ ! -f $GEARS_MODULE || $GEARS == get ]]; then
+			runn BRANCH=$GEARS_BRANCH $OP $ROOT/sbin/getgears
+		fi
+		GEARS_ARGS="--module $GEARS_MODULE"
+	fi
+	GEARS_ARGS+=" --module-args '$GEARS_MODARGS'"
+fi
 
 #----------------------------------------------------------------------------------------------
 

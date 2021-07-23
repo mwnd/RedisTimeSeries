@@ -9,12 +9,12 @@
 #include <sys/types.h>
 #include <stdbool.h>
 
-#if defined(__GNUC__)
-#define likely(x) __builtin_expect((x), 1)
-#define unlikely(x) __builtin_expect((x), 0)
-#elif _MSC_VER
-#define likely(x) (x)
-#define unlikely(x) (x)
+  #if defined(__GNUC__)
+#define likely(x)       __builtin_expect((x),1)
+#define unlikely(x)     __builtin_expect((x),0)
+  #elif _MSC_VER
+#define likely(x)       (x)
+#define unlikely(x)     (x)
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -31,6 +31,7 @@ typedef __int32 int32_t;
 typedef unsigned __int32 u_int32_t;
 typedef __int64 int64_t;
 typedef unsigned __int64 u_int64_t;
+typedef unsigned short ushort;
 #endif
 
 #define TRUE 1

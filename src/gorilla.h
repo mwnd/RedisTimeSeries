@@ -56,11 +56,12 @@ typedef struct Compressed_Iterator
 
     // value vars
     union64bits prevValue;
-    u_int8_t prevLeading;
-    u_int8_t prevTrailing;
+    u_int8_t leading;
+    u_int8_t trailing;
+    u_int8_t blocksize;
 } Compressed_Iterator;
 
 ChunkResult Compressed_Append(CompressedChunk *chunk, u_int64_t timestamp, double value);
-ChunkResult Compressed_ReadNext(Compressed_Iterator *iter, u_int64_t *timestamp, double *value);
+ChunkResult Compressed_ChunkIteratorGetNext(ChunkIter_t *iter, Sample *sample);
 
 #endif

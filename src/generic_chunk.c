@@ -13,6 +13,7 @@ static ChunkFuncs regChunk = {
 
     .AddSample = Uncompressed_AddSample,
     .UpsertSample = Uncompressed_UpsertSample,
+    .DelRange = Uncompressed_DelRange,
 
     .NewChunkIterator = Uncompressed_NewChunkIterator,
 
@@ -23,21 +24,26 @@ static ChunkFuncs regChunk = {
 
     .SaveToRDB = Uncompressed_SaveToRDB,
     .LoadFromRDB = Uncompressed_LoadFromRDB,
+    .GearsSerialize = Uncompressed_GearsSerialize,
+    .GearsDeserialize = Uncompressed_GearsDeserialize,
 };
 
 ChunkIterFuncs uncompressedChunkIteratorClass = {
     .Free = Uncompressed_FreeChunkIterator,
     .GetNext = Uncompressed_ChunkIteratorGetNext,
     .GetPrev = Uncompressed_ChunkIteratorGetPrev,
+    .Reset = Uncompressed_ResetChunkIterator,
 };
 
 static ChunkFuncs comprChunk = {
     .NewChunk = Compressed_NewChunk,
     .FreeChunk = Compressed_FreeChunk,
+    .CloneChunk = Compressed_CloneChunk,
     .SplitChunk = Compressed_SplitChunk,
 
     .AddSample = Compressed_AddSample,
     .UpsertSample = Compressed_UpsertSample,
+    .DelRange = Compressed_DelRange,
 
     .NewChunkIterator = Compressed_NewChunkIterator,
 
@@ -48,6 +54,8 @@ static ChunkFuncs comprChunk = {
 
     .SaveToRDB = Compressed_SaveToRDB,
     .LoadFromRDB = Compressed_LoadFromRDB,
+    .GearsSerialize = Compressed_GearsSerialize,
+    .GearsDeserialize = Compressed_GearsDeserialize,
 };
 
 static ChunkIterFuncs compressedChunkIteratorClass = {
@@ -55,6 +63,7 @@ static ChunkIterFuncs compressedChunkIteratorClass = {
     .GetNext = Compressed_ChunkIteratorGetNext,
     /*** Reverse iteration is on temporary decompressed chunk ***/
     .GetPrev = NULL,
+    .Reset = Compressed_ResetChunkIterator,
 };
 
 // This function will decide according to the policy how to handle duplicate sample, the `newSample`
@@ -163,4 +172,26 @@ DuplicatePolicy DuplicatePolicyFromString(const char *input, size_t len) {
     free(input_lower);
 #endif
     return DP_INVALID;
+}
+int timestamp_binary_search(const uint64_t *array, int size, uint64_t key) {
+    int l = 0, r = size;
+    while (l <= r) {
+        const int m = l + (r - l) / 2;
+
+        // If we found it then we are done.
+        if (array[m] == key)
+            return m;
+
+        // Search the top half of the array if the query is larger.
+        if (array[m] < key) {
+            l = m + 1;
+        }
+
+        else {
+            // Search the bottom half of the array if the query is smaller.
+            r = m - 1;
+        }
+    }
+    // if we reach here, then element was not present
+    return -1;
 }

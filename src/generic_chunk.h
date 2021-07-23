@@ -8,6 +8,7 @@
 #define GENERIC__CHUNK_H
 
 #include "consts.h"
+#include "redisgears.h"
 
 #include <stdio.h>  // printf
 #include <stdlib.h> // malloc
@@ -33,7 +34,7 @@ typedef void ChunkIter_t;
 // "temporary" uncompressed chunk.
 #define CHUNK_ITER_OP_FREE_CHUNK 1 << 2
 
-typedef enum
+typedef enum CHUNK_TYPES_T
 {
     CHUNK_REGULAR,
     CHUNK_COMPRESSED
@@ -50,14 +51,17 @@ typedef struct ChunkIterFuncs
     void (*Free)(ChunkIter_t *iter);
     ChunkResult (*GetNext)(ChunkIter_t *iter, Sample *sample);
     ChunkResult (*GetPrev)(ChunkIter_t *iter, Sample *sample);
+    void (*Reset)(ChunkIter_t *iter, Chunk_t *chunk);
 } ChunkIterFuncs;
 
 typedef struct ChunkFuncs
 {
     Chunk_t *(*NewChunk)(size_t sampleCount);
     void (*FreeChunk)(Chunk_t *chunk);
+    Chunk_t *(*CloneChunk)(Chunk_t *chunk);
     Chunk_t *(*SplitChunk)(Chunk_t *chunk);
 
+    size_t (*DelRange)(Chunk_t *chunk, timestamp_t startTs, timestamp_t endTs);
     ChunkResult (*AddSample)(Chunk_t *chunk, Sample *sample);
     ChunkResult (*UpsertSample)(UpsertCtx *uCtx, int *size, DuplicatePolicy duplicatePolicy);
 
@@ -72,6 +76,8 @@ typedef struct ChunkFuncs
 
     void (*SaveToRDB)(Chunk_t *chunk, struct RedisModuleIO *io);
     void (*LoadFromRDB)(Chunk_t **chunk, struct RedisModuleIO *io);
+    void (*GearsSerialize)(Chunk_t *chunk, Gears_BufferWriter *bw);
+    void (*GearsDeserialize)(Chunk_t **chunk, Gears_BufferReader *br);
 } ChunkFuncs;
 
 ChunkResult handleDuplicateSample(DuplicatePolicy policy, Sample oldSample, Sample *newSample);
@@ -81,5 +87,7 @@ DuplicatePolicy DuplicatePolicyFromString(const char *input, size_t len);
 
 ChunkFuncs *GetChunkClass(CHUNK_TYPES_T chunkClass);
 ChunkIterFuncs *GetChunkIteratorClass(CHUNK_TYPES_T chunkType);
+
+int timestamp_binary_search(const uint64_t *array, int size, uint64_t key);
 
 #endif // GENERIC__CHUNK_H
